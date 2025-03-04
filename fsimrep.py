@@ -84,10 +84,10 @@ class StarEventsQuery:
                     SELECT a.login, a.date,
                     a.repo as repo_a, b.repo as repo_b, 
                     r1.c as repo_a_stars, r2.c as repo_b_stars
-                FROM 'starbase.parquet' a
+                FROM 'starbase/*.parquet' a
                 JOIN 'starlite.parquet' r1
                     ON a.repo = r1.repo
-                JOIN 'starbase.parquet' b
+                JOIN 'starbase/*.parquet' b
                     ON a.login = b.login
                     AND a.repo != b.repo
                 JOIN 'starlite.parquet' r2
