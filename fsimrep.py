@@ -1,12 +1,4 @@
 #!/usr/bin/env -S uv run --script
-import json
-import os
-from typing import List, Optional
-import sys
-import argparse
-from datetime import datetime
-from dataclasses import dataclass
-#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
@@ -17,6 +9,13 @@ from dataclasses import dataclass
 #      "tabulate"
 # ]
 # ///
+import json
+import os
+from typing import List, Optional
+import sys
+import argparse
+from datetime import datetime
+from dataclasses import dataclass
 import duckdb
 import pandas as pd
 import altair as alt
@@ -24,6 +23,7 @@ import logging
 import tabulate
 from tqdm import tqdm
 import time
+
 
 
 # Configure logging
@@ -41,10 +41,7 @@ class RepoSimilarity:
     similarity_score: float
     common_users: int
     total_stars: int
-    # earliest_common_star: datetime
-    # latest_common_star: datetime
     desc: str
-    # string array
     topics: List[str]
 
 class DatabaseError(Exception):
@@ -65,7 +62,7 @@ class StarEventsQuery:
         """
         try:
             # Initialize DuckDB connection
-            self.conn = duckdb.connect("/me/datasets/stars2.ddb", read_only=True,)
+            self.conn = duckdb.connect(":memory:")
             logger.info("Successfully connected to DuckDB")
             
         except Exception as e:
@@ -87,13 +84,13 @@ class StarEventsQuery:
                     SELECT a.login, a.date,
                     a.repo as repo_a, b.repo as repo_b, 
                     r1.c as repo_a_stars, r2.c as repo_b_stars
-                FROM starbase a
-                JOIN starlite r1
+                FROM 'starbase.parquet' a
+                JOIN 'starlite.parquet' r1
                     ON a.repo = r1.repo
-                JOIN starbase b
+                JOIN 'starbase.parquet' b
                     ON a.login = b.login
                     AND a.repo != b.repo
-                JOIN starlite r2
+                JOIN 'starlite.parquet' r2
                     ON b.repo = r2.repo
                 WHERE a.repo ='{repo_name}'
             ),
@@ -133,7 +130,7 @@ class StarEventsQuery:
             ifnull(x.topics, []) as topics,
             ifnull(x.description, '') as desc,
             FROM results
-            LEFT JOIN  repos as x on x.full_name = results.full_name
+            LEFT JOIN  'repos.parquet' as x on x.full_name = results.full_name
             ORDER BY similarity_score DESC
             LIMIT {limit}
 
@@ -156,8 +153,6 @@ class StarEventsQuery:
                         similarity_score=float(row['similarity_score']),
                         common_users=int(row['common_users']),
                         total_stars=int(row['total_stars']),
-                        # earliest_common_star=row['earliest_common_star'],
-                        # latest_common_star=row['latest_common_star'],
                         desc=row['desc'],
                         topics=row['topics']
                     )
@@ -169,7 +164,6 @@ class StarEventsQuery:
             
         except Exception as e:
             print(e)
-        #     raise DatabaseError(f"Failed to calculate similarities: {json.enc(e)}")
 
 
 
@@ -186,14 +180,12 @@ def print_summary_stats(similarities: List[RepoSimilarity]) -> None:
         if len(df) == 0:
             logger.info("No similar repositories found.")
             return
-        print("=<", df.count())
         logger.info(f"Average similarity score: {df['similarity_score'].mean():.3f}")
         logger.info(f"Median similarity score: {df['similarity_score'].median():.3f}")
         logger.info(f"Max similarity score: {df['similarity_score'].max():.3f}")
         
         logger.info("\nTop 5 Most Similar Repositories (with details):")
         summary_df = df[['full_name', 'similarity_score', 'common_users', 'total_stars', 'topics', 'desc']].tail(100)
-        # tabulate.tabulate(df[['full_name', 'similarity_score', 'common_users', 'total_stars', 'topics', 'desc']].tail(100), headers='keys', tablefmt='psql')
         logger.info("\n" + summary_df.round(3).to_string(index=False))
         
     except Exception as e:
