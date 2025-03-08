@@ -23,7 +23,7 @@ import logging
 import tabulate
 from tqdm import tqdm
 import time
-
+import pathlib
 
 
 # Configure logging
@@ -63,6 +63,8 @@ class StarEventsQuery:
         try:
             # Initialize DuckDB connection
             self.conn = duckdb.connect(":memory:")
+            localpath = pathlib.Path(__file__).resolve().parent.absolute()
+            self.conn.execute(f"set file_search_path = '{localpath}';")
             logger.info("Successfully connected to DuckDB")
             
         except Exception as e:
@@ -76,10 +78,9 @@ class StarEventsQuery:
     ) -> List[RepoSimilarity]:
         logger.info(f"Calculating similarities for {repo_name}")
         start_time = time.time()
-        
         try:
             # Optimized query with better table joins and filtering
-            query = f"""--sql
+            query: str = f"""--sql
             WITH  repo_pairs AS (
                     SELECT a.login, a.date,
                     a.repo as repo_a, b.repo as repo_b, 
